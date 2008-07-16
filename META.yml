@@ -22,5 +22,5 @@ requires:
   DateTime::Locale: 0.41
   DateTime::TimeZone: 0
   Params::Validate: 0
-  perl: 5.000
-version: 1.00
+  perl: 5.8.0
+version: 1.01

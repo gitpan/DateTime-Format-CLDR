@@ -6,7 +6,7 @@ use inc::Module::Install;
 name            'DateTime-Format-CLDR';
 all_from        'lib/DateTime/Format/CLDR.pm';
 
-perl_version    '5.000';
+perl_version    '5.008';
 
 # Specific dependencies
 requires        'DateTime'                  => '0.4304';

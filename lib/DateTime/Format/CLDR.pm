@@ -12,24 +12,27 @@ use DateTime::Locale 0.4000;
 use DateTime::TimeZone;
 use Params::Validate qw( validate SCALAR BOOLEAN OBJECT CODEREF );
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 our %PARTS = (
-    year_long   => qr/(\d{4})/,
-    year_short  => qr/(\d{1,2})/,
-    day_month   => qr/(3[01]|[12]\d|[1-9])/,
-    day_year    => qr/([1-3]\d\d|[1-9]\d|[1-9])/,
-    day_week    => qr/[1-7]/,
-    month       => qr/(1[0-2]|[1-9])/,
-    hour_23     => qr/(2[0-4]|1\d|\d)/,
-    hour_24     => qr/(2[0-3]|1?\d)/,
-    hour_12     => qr/(1[0-2]|[1-9])/,
-    hour_11     => qr/(1[01]|\d)/,
-    minute      => qr/([1-5]?\d)/,
-    second      => qr/(6[01]|[1-5]?\d)/,
-    quarter     => qr/([1-4])/,
-    week        => qr/(5[0-3]|[1-4]\d|[1-9])/,
-    timezone    => qr/(?:1[0-4]|0\d)(?:00|15|30|45)/,
+    year_long   => qr/(\d{4})/o,
+    year_short  => qr/(\d{1,2})/o,
+    day_month   => qr/(3[01]|[12]\d|[1-9])/o,
+    day_year    => qr/([1-3]\d\d|[1-9]\d|[1-9])/o,
+    day_week    => qr/[1-7]/o,
+    month       => qr/(1[0-2]|[1-9])/o,
+    hour_23     => qr/(2[0-4]|1\d|\d)/o,
+    hour_24     => qr/(2[0-3]|1?\d)/o,
+    hour_12     => qr/(1[0-2]|[1-9])/o,
+    hour_11     => qr/(1[01]|\d)/o,
+    minute      => qr/([1-5]?\d)/o,
+    second      => qr/(6[01]|[1-5]?\d)/o,
+    quarter     => qr/([1-4])/o,
+    week_year   => qr/(5[0-3]|[1-4]\d|[1-9])/o,
+    week_month  => qr/\d/o,
+    timezone    => qr/[+-](1[0-4]|0\d)(00|15|30|45)/o,
+    number      => qr/\d+/o,
+    timezone2   => qr/([A-Z1-9a-z])([+-](1[0-4]|0\d)(00|15|30|45))/o,
 );
 
 our %ZONEMAP = (
@@ -114,7 +117,7 @@ our %ZONEMAP = (
    'SWT' => '+0100',          'T' => '-0700',        'TFT' => '+0500',
    'THA' => '+0700',       'THAT' => '-1000',        'TJT' => '+0500',
    'TKT' => '-1000',        'TMT' => '+0500',        'TOT' => '+1300',
-  'TRUT' => '+1000',        'TST' => '+0300',       'TUC ' => '+0000',
+  'TRUT' => '+1000',        'TST' => '+0300',        'TUC' => '+0000',
    'TVT' => '+1200',          'U' => '-0800',      'ULAST' => '+0900',
   'ULAT' => '+0800',       'USZ1' => '+0200',      'USZ1S' => '+0300',
   'USZ3' => '+0400',      'USZ3S' => '+0500',       'USZ4' => '+0500',
@@ -163,7 +166,8 @@ our %PARSER = (
     L3      => 'month_stand_alone_abbreviated',
     L4      => 'month_stand_alone_wide',
     L5      => 'month_stand_alone_narrow',
-    w1      => $PARTS{week},
+    w1      => $PARTS{week_year},
+    W1      => $PARTS{week_month},
     d1      => $PARTS{day_month},
     D1      => $PARTS{day_year},
     E1      => 'day_format_abbreviated',
@@ -185,7 +189,7 @@ our %PARSER = (
     s1      => $PARTS{second},
     s1      => $PARTS{second},
     Z1      => $PARTS{timezone},
-    
+    Z4      => $PARTS{timezone2},
     z1      => [ keys %ZONEMAP ],
     z4      => [ DateTime::TimeZone->all_names ],
     v1      => [ keys %ZONEMAP ],
@@ -291,6 +295,7 @@ sub pattern {
     my $self = shift;
     my $pattern = shift;
     
+    # Set pattern
     if ($pattern) {
         $self->{pattern} = $pattern;
         undef $self->{_built_pattern};
@@ -309,6 +314,7 @@ sub time_zone {
     my $self = shift;
     my $time_zone = shift;
     
+    # Set timezone
     if ($time_zone) {
         if (ref $time_zone
             && $time_zone->isa('DateTime::TimeZone')) {
@@ -317,7 +323,6 @@ sub time_zone {
             $self->{time_zone} = DateTime::TimeZone->new( name => $time_zone )
                 or croak("Could not create timezone from $time_zone");
         }  
-        undef $self->{_built_pattern};
     }
     
     return $self->{time_zone};
@@ -333,6 +338,7 @@ sub locale {
     my $self = shift;
     my $locale = shift;
     
+    # Set locale
     if ($locale) {
         unless (ref $locale
             && $locale->isa('DateTime::Locale::Base')) {
@@ -366,6 +372,8 @@ sub parse_datetime {
     my $datetime_initial = $string;
     my %datetime_info = ();
     my %datetime_check = ();
+    
+    # Set default datetime values
     my %datetime = (
         hour        => 0,
         minute      => 0,
@@ -376,6 +384,8 @@ sub parse_datetime {
     );
     
     foreach my $part (@{$pattern}) {
+        
+        # Pattern
         if (ref $part eq 'ARRAY') {
             my ($regexp,$command,$index) = @{$part};
             return undef
@@ -383,6 +393,7 @@ sub parse_datetime {
             
             my $capture = $1;
             
+            # Pattern is a list: get index instead of value
             if (grep { $command.$index eq $_ } 
                 qw(G1 G3 G5 Q3 Q4 q3 q4 M3 M4 M5 L3 L4 L5 E1 E4 E5 e3 e4 e5 c3 c4 a1 )) {
                 my $function = $PARSER{$command.$index};
@@ -396,10 +407,10 @@ sub parse_datetime {
                 }
             }
             
+            # simple pattern
             if ($command eq 'G' ) {
                 $datetime_check{era_name} = $capture;
             } elsif ($command eq 'y' && $index == 2) {
-
                 $datetime{year} = $capture;
                 if ($datetime{year} >= 70) {
                     $datetime{year} += 1900;
@@ -413,7 +424,9 @@ sub parse_datetime {
             } elsif ($command eq 'M' || $command eq 'L') {
                 $datetime{month} = $capture; 
             } elsif ($command eq 'w') {
-                $datetime{week} = $capture;
+                $datetime_check{week_number} = $capture;
+            } elsif ($command eq 'W') {
+                $datetime_check{week_of_month} = $capture;
             } elsif ($command eq 'd') {
                 $datetime{day} = $capture;
             } elsif ($command eq 'D') {
@@ -434,7 +447,10 @@ sub parse_datetime {
                 $datetime{minute} = $capture;
             } elsif ($command eq 's') {
                 $datetime{second} = $capture;
-            } elsif ($command eq 'T') {
+            } elsif ($command eq 'Z') {
+                if ($index >= 4) {
+                    $capture = $3;
+                }
                 $datetime{time_zone} = DateTime::TimeZone->new(name => $capture);
             } elsif (($command eq 'z' || $command eq 'v' || $command eq 'V') && $index == 1) {
                 if (! defined $ZONEMAP{$capture} 
@@ -446,7 +462,8 @@ sub parse_datetime {
             } elsif ($command eq 'z' || $command eq 'v' || $command eq 'V') {
                 $datetime{time_zone} = DateTime::TimeZone->new(name => $capture);
             }
-            
+       
+        # String
         } else {
            
             return undef
@@ -495,6 +512,7 @@ sub format_datetime {
 sub _build_pattern {
     my $self = shift;
     
+    # Return cached pattern
     return $self->{_built_pattern}
         if defined $self->{_built_pattern};
        
@@ -513,9 +531,13 @@ sub _build_pattern {
         )
         /sxg) {
         my ($string,$pattern,$rest) = ($1,$2,$4);
+        
+        # Quoted string
         if ($string) {
             $string =~ s/\'\'/\'/g;
             push @{$self->{_built_pattern}}, "\Q".$string."\E";
+            
+        # Pattern
         } elsif ($pattern) {
             my $length = length $pattern;
             my $command = substr $pattern,0,1;
@@ -529,14 +551,19 @@ sub _build_pattern {
             }
             die("Broken pattern: $command $length")
                 unless $rule ;
-                
+            
+            # Regular expression
             if (ref $rule eq 'Regexp') {
                 $regexp =  '0*'.$rule;
+            
+            # Array of possible values
             } elsif (ref $rule eq 'ARRAY') {
                 
                 $regexp = '('.(join '|',map {
                     "\Q".$_."\E";
                 } sort { length $b <=> length $a } @{$rule}).')';
+                
+            # DateTime::Locale method (returning an array)
             } else {
                 $regexp = '('.(join '|',map {
                     "\Q".$_."\E";
@@ -545,6 +572,7 @@ sub _build_pattern {
             
             push @{$self->{_built_pattern}},[$regexp,$command,$index];
             
+        # Unqoted string
         } elsif ($rest) {
             $rest =~ s/\'\'/\'/g;
             push @{$self->{_built_pattern}}, "\Q".$rest."\E";
@@ -553,8 +581,14 @@ sub _build_pattern {
     
     return $self->{_built_pattern};
 }
-
-
+#
+#sub _build_timezone {
+#    my $regexp =  $PARTS{timezone}.
+#        '('.(join '|',map {
+#        "\Q".$_."\E";
+#        } sort { length $b <=> length $a } keys %ZONEMAP).')';
+#    return qr/$regexp/o;
+#}
 
 
 1;
@@ -571,13 +605,19 @@ CLDR provides the following pattenrs:
 
 The abbreviated era (BC, AD).
 
+Not used to construct a date.
+
 =item * GGGG
 
 The wide era (Before Christ, Anno Domini).
 
+Not used to construct a date.
+
 =item * GGGGG
 
 The narrow era, if it exists (and it mostly doesn't).
+
+Not used to construct a date.
 
 =item * y and y{3,}
 
@@ -656,9 +696,13 @@ The narrow stand-alone form for the month.
 
 The week of the year, from C<< $dt->week_number() >>.
 
+Not used to construct a date.
+
 =item * W
 
 The week of the month, from C<< $dt->week_of_month() >>.
+
+Not used to construct a date.
 
 =item * d{1,2}
 
@@ -667,6 +711,8 @@ The numeric day of of the month.
 =item * D{1,3}
 
 The numeric day of of the year.
+
+Not used to construct a date.
 
 =item * F
 
@@ -759,14 +805,11 @@ The second.
 
 =item * S{1,}
 
-The fractional portion of the seconds, rounded based on the length of
-the specifier. This returned I<without> a leading decimal point, but
-may have leading or trailing zeroes.
+Not supported by DateTime::Format::CLDR
 
 =item * A{1,}
 
-The millisecond of the day, based on the current time. In other words,
-if it is 12:00:00.00, this returns 43200000.
+Not supported by DateTime::Format::CLDR
 
 =item * z{1,3}
 
