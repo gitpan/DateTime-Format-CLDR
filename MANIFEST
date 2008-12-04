@@ -19,3 +19,4 @@ t/003_podcoverage.t
 t/004_basic.t
 t/005_extended.t
 t/006_exceptions.t
+t/007_bug_rt41392.t
