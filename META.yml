@@ -8,7 +8,7 @@ build_requires:
   Test::Pod: 0
   Test::Pod::Coverage: 0
 distribution_type: module
-generated_by: 'Module::Install version 0.77'
+generated_by: 'Module::Install version 0.79'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -19,11 +19,12 @@ no_index:
     - inc
     - t
 requires:
-  DateTime: 0.4304
-  DateTime::Locale: 0.41
+  DateTime: 0.44
+  DateTime::Incomplete: 0
+  DateTime::Locale: 0.42
   DateTime::TimeZone: 0
   Params::Validate: 0
   perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.02
+version: 1.03
