@@ -18,12 +18,13 @@ our @ISA = 'Exporter';
 our @EXPORT_OK = qw( cldr_format cldr_parse );
 our @EXPORT = ();
 
-our $VERSION = version->new("1.08");
+our $AUTHORITY = 'cpan:MAROS';
+our $VERSION = version->new("1.09");
 
 # Simple regexp blocks
 our %PARTS = (
-    year_long   => qr/(\d{4})/o,
-    year_short  => qr/(\d{2})/o,
+    year_long   => qr/(-?\d{1,4})/o,
+    year_short  => qr/(-?\d{2})/o,
     day_week    => qr/([1-7])/o,
     day_month   => qr/(3[01]|[12]\d|0?[1-9])/o,
     day_year    => qr/([1-3]\d\d|0?[1-9]\d|(?:00)?[1-9])/o,
@@ -323,8 +324,6 @@ sub new {
 
     # Set default values    
     $args{time_zone} ||= DateTime::TimeZone->new( name => 'floating' );
-    
-    
     
     # Pass on to accessors
     $self->time_zone($args{time_zone});
@@ -630,6 +629,8 @@ sub parse_datetime {
                 $datetime{time_zone} = DateTime::TimeZone->new(name => $ZONEMAP{$capture});
             } elsif ($command eq 'z' || $command eq 'v' || $command eq 'V') {
                 $datetime{time_zone} = DateTime::TimeZone->new(name => $capture);
+            } else {
+                return $self->_local_croak("Something went really wrong: Unknown pattern $command$index");
             }
        
         # String
@@ -644,7 +645,7 @@ sub parse_datetime {
     return $self->_local_croak("Could not get datetime for $datetime_initial: $string") 
         if $string;
     
-    # Fix 12 hour time notations
+    # Handle 12 hour time notations
     if (defined $datetime_info{hour12} 
         && defined $datetime_info{ampm}) {
         $datetime{hour} = $datetime_info{hour12};
@@ -652,7 +653,12 @@ sub parse_datetime {
             if $datetime_info{ampm} == 2 && $datetime{hour} < 12;
     }
     
-    my $dt;
+    # Handle era
+    if (defined $datetime_info{era} 
+        && $datetime_info{era} == 0
+        && defined $datetime{year}) {
+        $datetime{year} *= -1;
+    }
     
     # Handle incomplete datetime information
     unless (defined $datetime{year} 
@@ -668,22 +674,20 @@ sub parse_datetime {
             $datetime{year} ||= 1;
         } elsif ($self->{incomplete} eq 'incomplete') {
             require DateTime::Incomplete;
-            my $dt = DateTime::Incomplete->new(%datetime);
+            my $dt;
+            eval {
+                $dt = DateTime::Incomplete->new(%datetime);
+            };
             return $self->_local_croak("Could not get datetime for $datetime_initial: $@")
                 if $@ || ref $dt ne 'DateTime::Incomplete';
             return $dt;
         } else {
-            return $self->_local_croak("Something went really wrong!");
+            return $self->_local_croak("Something went really wrong: Invalid incomplete setting");
         }
     }
     
-    if (defined $datetime_info{era} 
-        && $datetime_info{era} == 0
-        && defined $datetime{year}) {
-        $datetime{year} *= -1;
-    }
-    
     # Build datetime 
+    my $dt;
     eval {
         $dt = DateTime->new(%datetime);
     };
@@ -696,10 +700,8 @@ sub parse_datetime {
             my @return = $self->_local_croak("Datetime '$check' does not match ('$datetime_check{$check}' vs. '".$dt->$check."') for $datetime_initial");
             return @return
                 if scalar @return;
-        }
-            
+        }   
     }
-    
 
     return $dt;
 }
@@ -714,10 +716,16 @@ time_zone)
 =cut
 
 sub format_datetime {
-    my ( $self, $dt ) = validate_pos( @_, 1, { default => DateTime->now(), type => OBJECT } );
+    my ( $self, $dt ) = @_;
     
+    $dt = DateTime->now
+        unless defined $dt && ref $dt && $dt->isa('DateTime');
+    
+    #see http://rt.cpan.org/Public/Bug/Display.html?id=49605
+    #my ( $self, $dt ) = validate_pos( @_, 1, { default => DateTime->now, type => OBJECT } );
     $dt = $dt->clone;
     $dt->set_locale($self->{locale}); 
+    
     return $dt->format_cldr($self->{pattern});
 }
 
@@ -749,7 +757,7 @@ There are no methods exported by default, however the following are available:
 sub cldr_format {
     my ($pattern, $datetime) = @_;
     
-    return $datetime->format_cldr($pattern);;
+    return $datetime->format_cldr($pattern);
 }
 
 =head3 cldr_parse
@@ -818,7 +826,7 @@ sub _build_pattern {
             my $command = substr $pattern,0,1;
             my ($rule,$regexp,$index);
             
-            
+            # Inflate 'j' pattern depending on locale
             if ($command eq 'j') {
                 $command = ($self->{locale}->prefers_24_hour_time()) ? 'H':'h';
             }
@@ -949,13 +957,9 @@ CLDR provides the following pattenrs:
 
 The abbreviated era (BC, AD).
 
-Not used to construct a date.
-
 =item * GGGG
 
 The wide era (Before Christ, Anno Domini).
-
-Not used to construct a date.
 
 =item * GGGGG
 
@@ -1234,8 +1238,6 @@ The time zone long name.
 =back
 
 =head1 CAVEATS
-
-y and y{3} patterns can only parse four digit years (1000 -> 9999)
 
 Patterns without separators (like 'dMy' or 'yMd') are ambigous for some 
 dates and might fail.
