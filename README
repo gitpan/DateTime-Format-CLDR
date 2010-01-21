@@ -186,13 +186,9 @@ CLDR PATTERNS
 
         The abbreviated era (BC, AD).
 
-        Not used to construct a date.
-
     *   GGGG
 
         The wide era (Before Christ, Anno Domini).
-
-        Not used to construct a date.
 
     *   GGGGG
 
@@ -469,8 +465,6 @@ CLDR PATTERNS
         The time zone long name.
 
 CAVEATS
-    y and y{3} patterns can only parse four digit years (1000 -> 9999)
-
     Patterns without separators (like 'dMy' or 'yMd') are ambigous for some
     dates and might fail.
 
