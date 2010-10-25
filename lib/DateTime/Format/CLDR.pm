@@ -19,7 +19,10 @@ our @EXPORT_OK = qw( cldr_format cldr_parse );
 our @EXPORT = ();
 
 our $AUTHORITY = 'cpan:MAROS';
-our $VERSION = version->new("1.10");
+our $VERSION = version->new("1.11");
+
+# Default format if none is set
+our $DEFAULT_FORMAT = 'date_format_medium';
 
 # Simple regexp blocks
 our %PARTS = (
@@ -224,33 +227,45 @@ DateTime::Format::CLDR - Parse and format CLDR time patterns
 
     use DateTime::Format::CLDR;
     
-    my $cldr = new DateTime::Format::CLDR(
+    # 1. Basic example
+    my $cldr1 = new DateTime::Format::CLDR(
         pattern     => 'HH:mm:ss',
         locale      => 'de_AT',
         time_zone   => 'Europe/Vienna',
     );
     
-    my $dt = $cldr->parse_datetime('23:16:42');
+    my $dt1 = $cldr1->parse_datetime('23:16:42');
     
-    $cldr->format_datetime($dt);
+    print $cldr1->format_datetime($dt1);
     # 23:16:42
     
-    # Get pattern from selected locale
-    my $cldr = new DateTime::Format::CLDR(
+    # 2. Get pattern from selected locale
+    # pattern is taken from 'date_format_medium' in DateTime::Locale::de_AT
+    my $cldr2 = new DateTime::Format::CLDR(
         locale      => 'de_AT',
     );
     
-    # pattern is taken from 'date_format_medium' in DateTime::Locale::de_AT
-    my $dt = $cldr->parse_datetime('23.11.2007');
+    print $cldr2->parse_datetime('23.11.2007');
+    # 2007-11-23T00:00:00
     
-    # Croak when things go wrong:
-    my $cldr = new DateTime::Format::CLDR(
+    # 3. Croak when things go wrong
+    my $cldr3 = new DateTime::Format::CLDR(
         locale      => 'de_AT',
         on_error    => 'croak',
     );
     
-    # This will croak
-    $cldr->parse_datetime('23.33.2007');
+    $cldr3->parse_datetime('23.33.2007');
+    # Croaks
+    
+    # 4. Use DateTime::Locale
+    my $locale = DateTime::Locale->load('en_GB');
+    my $cldr4 = new DateTime::Format::CLDR(
+        pattern     => $locale->datetime_format_medium,
+        locale      => $locale,
+    );
+    
+    print $cldr4->parse_datetime('22 Dec 1995 09:05:02');
+    # 1995-12-22T09:05:02
 
 =head1 DESCRIPTION
 
@@ -329,8 +344,14 @@ sub new {
     $self->time_zone($args{time_zone});
     $self->locale($args{locale});
     
-    # Set default values  
-    $args{pattern} ||= $self->locale->date_format_medium;
+    # Set default values
+    unless (defined $args{pattern}) {
+        if ($self->locale->can($DEFAULT_FORMAT)) {
+            $args{pattern} = $self->locale->$DEFAULT_FORMAT;
+        } else {
+            die("Method '$DEFAULT_FORMAT' not available in ".ref($self->loclale));
+        }
+    }
     
     $self->pattern($args{pattern});
     $self->on_error($args{on_error});
@@ -344,16 +365,23 @@ sub new {
 
 =head3 pattern
 
-Get/set pattern. See L<DateTime/"CLDR Patterns"> for details about patterns.
+Get/set CLDR pattern. See L<"CLDR PATTERNS"> or L<DateTime/"CLDR Patterns"> 
+for details about patterns.
+
+ $cldr->pattern('d MMM y HH:mm:ss');
+
+It is possible to retrieve patterns from L<DateTime::Locale>
+ 
+ $dl = DateTime::Locale->load('es_AR');
+ $cldr->pattern($dl->datetime_format_full);
 
 =cut
 
 sub pattern {
-    my $self = shift;
-    my $pattern = shift;
+    my ($self,$pattern) = @_;
     
     # Set pattern
-    if ($pattern) {
+    if (defined $pattern) {
         $self->{pattern} = $pattern;
         undef $self->{_built_pattern};
     }
@@ -367,14 +395,18 @@ Get/set time_zone. Returns a C<DateTime::TimeZone> object.
 
 Accepts either a timezone name or a C<DateTime::TimeZone> object.
 
+ $cldr->time_zone('America/Argentina/Mendoza');
+ OR
+ my $tz = DateTime::TimeZone->new(name => 'America/Argentina/Mendoza');
+ $cldr->time_zone($tz);
+
 =cut
 
 sub time_zone {
-    my $self = shift;
-    my $time_zone = shift;
+    my ($self,$time_zone) = @_;
     
     # Set timezone
-    if ($time_zone) {
+    if (defined $time_zone) {
         if (ref $time_zone
             && $time_zone->isa('DateTime::TimeZone')) {
             $self->{time_zone} = $time_zone;
@@ -393,14 +425,18 @@ Get/set a locale. Returns a C<DateTime::Locale> object.
 
 Accepts either a locale name or a C<DateTime::Locale::*> object.
 
+ $cldr->locale('fr_CA');
+ OR  
+ $dl = DateTime::Locale->load('fr_CA');
+ $cldr->pattern($dl);
+
 =cut
 
 sub locale {
-    my $self = shift;
-    my $locale = shift;
+    my ($self,$locale) = @_;
     
     # Set locale
-    if ($locale) {
+    if (defined $locale) {
         unless (ref $locale
             && $locale->isa('DateTime::Locale::Base')) {
             $self->{locale} = DateTime::Locale->load( $locale )
@@ -439,11 +475,10 @@ Run the given coderef on error.
 =cut
 
 sub on_error {
-    my $self = shift;
-    my $on_error = shift;
+    my ($self,$on_error) = @_;
     
     # Set locale
-    if ($on_error) {
+    if (defined $on_error) {
         die("The value supplied to on_error must be either 'croak', 'undef' or a code reference.")
             unless ref($on_error) eq 'CODE'
                 or $on_error eq 'croak'
@@ -463,7 +498,7 @@ Accepts the following values
 
 =item * '1' (default)
 
-Sets the missing values to '1'. Thus if you only parse a time you would
+Sets the missing values to '1'. Thus if you only parse a time sting you would
 get '0001-01-01' as the date.
 
 =item * 'incomplete'
@@ -475,18 +510,17 @@ Create a L<DateTime::Incomplete> object instead.
 Run the given coderef on incomplete values. The code reference will be
 called with the C<DateTime::Format::CLDR> object and a hash of parsed values
 as supplied to C<DateTime-E<gt>new>. It should return a modified hash which
-will be passed to C<DateTine-E<gt>new>.
+will be passed to C<DateTine-E<gt>new>. 
 
 =back
 
 =cut
 
 sub incomplete {
-    my $self = shift;
-    my $incomplete = shift;
+    my ($self,$incomplete) = @_;
     
     # Set locale
-    if ($incomplete) {
+    if (defined $incomplete) {
         die("The value supplied to incomplete must be either 'incomplete', '1' or a code reference.")
             unless ref($incomplete) eq 'CODE'
                 or $incomplete eq '1'
@@ -551,7 +585,7 @@ sub parse_datetime {
                 my $count = 1;
                 my $tmpcapture;
                 foreach my $element (@{$self->{locale}->$function}) {
-                    if ($element eq $capture) {
+                    if (lc($element) eq lc($capture)) {
                         if (defined $tmpcapture) {
                             $self->_local_carp("Expression '$capture' is ambigous for pattern '$command$index' ");
                             next PART;
@@ -732,7 +766,7 @@ sub format_datetime {
 
  my $string = $cldr->errmsg();
 
-Stores the last error message. Usefull if the on_error behavior of the 
+Stores the last error message. Especially useful if the on_error behavior of the 
 object is 'undef', so you can work out why things went wrong.
 
 =cut
@@ -748,6 +782,7 @@ There are no methods exported by default, however the following are available:
 
 =head3 cldr_format
 
+ use DateTime::Format::CLDR qw(cldr_format);
  &cldr_format($pattern,$datetime);
 
 =cut
@@ -760,9 +795,10 @@ sub cldr_format {
 
 =head3 cldr_parse
 
- &cldr_format($pattern,$string);
+ use DateTime::Format::CLDR qw(cldr_parse);
+ &cldr_parse($pattern,$string);
  OR
- &cldr_format($pattern,$string,$locale);
+ &cldr_parse($pattern,$string,$locale);
  
 Default locale is 'en'.
 
@@ -788,7 +824,7 @@ sub cldr_parse {
 # by parse_datetime
 
 sub _build_pattern {
-    my $self = shift;
+    my ($self) = @_;
     
     # Return cached pattern
     return $self->{_built_pattern}
@@ -873,6 +909,7 @@ sub _build_pattern {
 
 sub _quoteslist {
     my ($list) = @_;
+    
     return  
         '('.
         (join 
@@ -896,8 +933,7 @@ sub _quotestring {
 # Error
 
 sub _local_croak {
-    my $self = shift;
-    my $message = shift;
+    my ($self,$message) = @_;
     
     $self->{errmsg} = $message;
 
@@ -916,9 +952,8 @@ sub _local_croak {
 # Warning
 
 sub _local_carp {
-    my $self = shift;
-    my $message = shift;
-
+    my ($self,$message) = @_;
+    
     $self->{errmsg} = $message;
 
     return &{$self->{on_error}}($self,$message,@_) 
@@ -1277,7 +1312,7 @@ software company I run with Koki and Domm (L<http://search.cpan.org/~domm/>).
 
 =head1 COPYRIGHT
 
-DateTime::Format::CLDR is Copyright (c) 2008 Maroš Kollár 
+DateTime::Format::CLDR is Copyright (c) 2008-2010 Maroš Kollár 
 - L<http://www.revdev.at>
 
 This program is free software; you can redistribute it and/or modify it under 
