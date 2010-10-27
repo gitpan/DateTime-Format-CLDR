@@ -34,4 +34,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://github.com/maros/DateTime-Format-CLDR.git
-version: 1.110
+version: 1.120
