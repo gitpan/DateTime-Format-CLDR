@@ -4,7 +4,7 @@ author:
   - 'Maroš Kollár'
 build_requires:
   Exporter: 0
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 6.59
   Test::Exception: 0
   Test::NoWarnings: 0
   Test::Pod: 0
@@ -12,9 +12,9 @@ build_requires:
   Test::Simple: 0.82
   Test::Warn: 0
 configure_requires:
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 6.59
 dynamic_config: 0
-generated_by: 'Module::Install version 1.02, CPAN::Meta::Converter version 2.112621'
+generated_by: 'Module::Install version 1.06, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -34,4 +34,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://github.com/maros/DateTime-Format-CLDR.git
-version: 1.130
+version: 1.14

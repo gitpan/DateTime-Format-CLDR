@@ -5,7 +5,7 @@ SYNOPSIS
         use DateTime::Format::CLDR;
     
         # 1. Basic example
-        my $cldr1 = new DateTime::Format::CLDR(
+        my $cldr1 = DateTime::Format::CLDR->new(
             pattern     => 'HH:mm:ss',
             locale      => 'de_AT',
             time_zone   => 'Europe/Vienna',
@@ -18,7 +18,7 @@ SYNOPSIS
     
         # 2. Get pattern from selected locale
         # pattern is taken from 'date_format_medium' in DateTime::Locale::de_AT
-        my $cldr2 = new DateTime::Format::CLDR(
+        my $cldr2 = DateTime::Format::CLDR->new(
             locale      => 'de_AT',
         );
     
@@ -26,7 +26,7 @@ SYNOPSIS
         # 2007-11-23T00:00:00
     
         # 3. Croak when things go wrong
-        my $cldr3 = new DateTime::Format::CLDR(
+        my $cldr3 = DateTime::Format::CLDR->new(
             locale      => 'de_AT',
             on_error    => 'croak',
         );
@@ -36,7 +36,7 @@ SYNOPSIS
     
         # 4. Use DateTime::Locale
         my $locale = DateTime::Locale->load('en_GB');
-        my $cldr4 = new DateTime::Format::CLDR(
+        my $cldr4 = DateTime::Format::CLDR->new(
             pattern     => $locale->datetime_format_medium,
             locale      => $locale,
         );
@@ -515,28 +515,6 @@ SUPPORT
     . I will be notified and then you'll automatically be notified of the
     progress on your report as I make changes.
 
-AUTHOR
-        Maroš Kollár
-        CPAN ID: MAROS
-        maros [at] k-1.com
-    
-        L<http://www.revdev.at>
-
-ACKNOWLEDGEMENTS
-    This module was written for Revdev <http://www.revdev.at>, a nice litte
-    software company I run with Koki and Domm
-    (<http://search.cpan.org/~domm/>).
-
-COPYRIGHT
-    DateTime::Format::CLDR is Copyright (c) 2008-2010 Maroš Kollár -
-    <http://www.revdev.at>
-
-    This program is free software; you can redistribute it and/or modify it
-    under the same terms as Perl itself.
-
-    The full text of the license can be found in the LICENSE file included
-    with this module.
-
 SEE ALSO
     datetime@perl.org mailing list
 
@@ -544,4 +522,19 @@ SEE ALSO
 
     DateTime, DateTime::Locale, DateTime::TimeZone and
     DateTime::Format::Strptime
+
+AUTHOR
+        Maroš Kollár
+        CPAN ID: MAROS
+        maros [at] k-1.com
+    
+        http://www.k-1.com
+
+COPYRIGHT
+    DateTime::Format::CLDR is Copyright (c) 2008-2012 Maroš Kollár -
+    <http://www.k-1.com>
+
+LICENCE
+    This library is free software, you can redistribute it and/or modify it
+    under the same terms as Perl itself.
 
