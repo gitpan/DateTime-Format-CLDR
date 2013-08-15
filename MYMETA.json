@@ -4,7 +4,7 @@
       "Maroš Kollár"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Module::Install version 1.06, CPAN::Meta::Converter version 2.120921",
+   "generated_by" : "Module::Install version 1.06, CPAN::Meta::Converter version 2.130880",
    "license" : [
       "perl_5"
    ],
@@ -16,18 +16,16 @@
    "no_index" : {
       "directory" : [
          "inc",
-         "t"
+         "t",
+         "xt"
       ]
    },
    "prereqs" : {
       "build" : {
          "requires" : {
-            "Exporter" : "0",
             "ExtUtils::MakeMaker" : "6.59",
             "Test::Exception" : "0",
             "Test::NoWarnings" : "0",
-            "Test::Pod" : "0",
-            "Test::Pod::Coverage" : "0",
             "Test::Simple" : "0.82",
             "Test::Warn" : "0"
          }
@@ -43,6 +41,7 @@
             "DateTime::Incomplete" : "0",
             "DateTime::Locale" : "0.42",
             "DateTime::TimeZone" : "0.95",
+            "Exporter" : "0",
             "Params::Validate" : "0.76",
             "perl" : "5.008"
          }
@@ -54,8 +53,9 @@
          "http://dev.perl.org/licenses/"
       ],
       "repository" : {
+         "type" : "git",
          "url" : "git://github.com/maros/DateTime-Format-CLDR.git"
       }
    },
-   "version" : "1.14"
+   "version" : "1.15"
 }

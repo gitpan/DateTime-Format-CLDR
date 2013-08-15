@@ -5,20 +5,20 @@ use strict;
 use warnings;
 use utf8;
 
-#use Carp;
-
 use DateTime;
 use DateTime::Locale 0.4000;
 use DateTime::TimeZone;
 use Params::Validate qw( validate_pos validate SCALAR BOOLEAN OBJECT CODEREF );
 use Exporter;
+use Carp qw(croak carp);
 
-our @ISA = 'Exporter';
+# Export functions
+use base qw(Exporter);
 our @EXPORT_OK = qw( cldr_format cldr_parse );
-our @EXPORT = ();
 
+# CPAN data
 our $AUTHORITY = 'cpan:MAROS';
-our $VERSION = "1.14";
+our $VERSION = "1.15";
 
 # Default format if none is set
 our $DEFAULT_FORMAT = 'date_format_medium';
@@ -31,7 +31,7 @@ our %PARTS = (
     day_month   => qr/(3[01]|[12]\d|0?[1-9])/o,
     day_year    => qr/([1-3]\d\d|0?[1-9]\d|(?:00)?[1-9])/o,
     month       => qr/(1[0-2]|0?[1-9])/o,
-    hour_23     => qr/(00|2[0-3]|1\d|0?\d)/o,
+    hour_23     => qr/(00|2[0-4]|1\d|0?\d)/o,
     hour_24     => qr/(2[0-4]|1\d|0?[1-9])/o,
     hour_12     => qr/(1[0-2]|0?[1-9])/o,
     hour_11     => qr/(00|1[01]|0?\d)/o,
@@ -152,7 +152,6 @@ our %ZONEMAP = (
   'YEKT' => '+0500',        'YST' => '-0900',          'Z' => '+0000',
 );
 
-
 # Map of CLDR commands to values
 # Value might be
 # - Regular expression: usually taken from %PART
@@ -203,6 +202,7 @@ our %PARSER = (
     H1      => $PARTS{hour_23},
     K1      => $PARTS{hour_11},
     k1      => $PARTS{hour_24},
+   #j1      => Handled dyamically,
     m1      => $PARTS{minute},
     s1      => $PARTS{second},
     S1      => $PARTS{number},
@@ -210,11 +210,10 @@ our %PARSER = (
     Z4      => $PARTS{timezone2},
     z1      => [ keys %ZONEMAP ],
     z4      => [ DateTime::TimeZone->all_names ],
-    v1      => [ keys %ZONEMAP ],
-    v4      => [ DateTime::TimeZone->all_names ],
-    V1      => [ keys %ZONEMAP ],
-    V4      => [ DateTime::TimeZone->all_names ],
 );
+$PARSER{v1} = $PARSER{V1} = $PARSER{z1};
+$PARSER{v4} = $PARSER{V4} = $PARSER{z4};
+
 
 =encoding utf8
 
@@ -348,7 +347,7 @@ sub new {
         if ($self->locale->can($DEFAULT_FORMAT)) {
             $args{pattern} = $self->locale->$DEFAULT_FORMAT;
         } else {
-            die("Method '$DEFAULT_FORMAT' not available in ".ref($self->loclale));
+            croak("Method '$DEFAULT_FORMAT' not available in ".ref($self->loclale));
         }
     }
     
@@ -411,7 +410,7 @@ sub time_zone {
             $self->{time_zone} = $time_zone;
         } else {
             $self->{time_zone} = DateTime::TimeZone->new( name => $time_zone )
-                or die("Could not create timezone from $time_zone");
+                or croak("Could not create timezone from $time_zone");
         }  
     }
     
@@ -439,7 +438,7 @@ sub locale {
         unless (ref $locale
             && $locale->isa('DateTime::Locale::Base')) {
             $self->{locale} = DateTime::Locale->load( $locale )
-                or die("Could not create locale from $locale");
+                or croak("Could not create locale from $locale");
         } else {
             $self->{locale} = $locale;
         }  
@@ -478,7 +477,7 @@ sub on_error {
     
     # Set locale
     if (defined $on_error) {
-        die("The value supplied to on_error must be either 'croak', 'undef' or a code reference.")
+        croak("The value supplied to on_error must be either 'croak', 'undef' or a code reference.")
             unless ref($on_error) eq 'CODE'
                 or $on_error eq 'croak'
                 or $on_error eq 'undef';
@@ -520,7 +519,7 @@ sub incomplete {
     
     # Set locale
     if (defined $incomplete) {
-        die("The value supplied to incomplete must be either 'incomplete', '1' or a code reference.")
+        croak("The value supplied to incomplete must be either 'incomplete', '1' or a code reference.")
             unless ref($incomplete) eq 'CODE'
                 or $incomplete eq '1'
                 or $incomplete eq 'incomplete';
@@ -550,6 +549,12 @@ sub parse_datetime {
     my $datetime_initial = $string;
     my %datetime_info = ();
     my %datetime_check = ();
+    my $datetime_error = sub {
+        my $occurence = shift;
+        my $error = $datetime_initial;
+        substr($error,(length($occurence) * -1),0," HERE-->");
+        return $self->_local_croak("Could not get datetime for $datetime_initial (Error marked by 'HERE-->'): '$error'");
+    };
     
     # Set default datetime values
     my %datetime = (
@@ -572,8 +577,8 @@ sub parse_datetime {
             #print "TRY TO MATCH '$string' AGAINST '$regexp' WITH $command\n";
             
             # Match regexp part
-            return $self->_local_croak("Could not get datetime for $datetime_initial: $string")
-                unless ($string =~ s/$regexp//ix);
+            return $datetime_error->($string)
+                unless ($string =~ s/^ \s* $regexp//ix);
             
             # Get capture
             my $capture = $1;
@@ -635,7 +640,6 @@ sub parse_datetime {
                 $capture = 0 if $capture == 12;
                 $datetime_info{hour12} = $capture;
             } elsif ($command eq 'K') { # 0-11
-                #$capture = 12 if $capture == 0;
                 $datetime_info{hour12} = $capture;
             } elsif ($command eq 'H') { # 0-23
                 $datetime{hour} = $capture;
@@ -647,7 +651,7 @@ sub parse_datetime {
             } elsif ($command eq 's') {
                 $datetime{second} = $capture;
             } elsif ($command eq 'S' ) {
-                $datetime{nanosecond} = "0.$capture" * 1000000000;
+                $datetime{nanosecond} = int("0.$capture" * 1000000000);
             } elsif ($command eq 'Z') {
                 if ($index >= 4) {
                     $capture = $2;
@@ -663,20 +667,18 @@ sub parse_datetime {
             } elsif ($command eq 'z' || $command eq 'v' || $command eq 'V') {
                 $datetime{time_zone} = DateTime::TimeZone->new(name => $capture);
             } else {
-                return $self->_local_croak("Something went really wrong: Unknown pattern $command$index");
+                return $self->_local_croak("Could not get datetime for '$datetime_initial': Unknown pattern $command$index");
             }
        
         # String
-        } else {
-            return $self->_local_croak("Could not get datetime for $datetime_initial: $string")
-                unless ($string =~ s/$part//ix);
+        } elsif ($string !~ s/^ \s* $part//ix) {
+            return $datetime_error->($string);
         }
-        
         #print "BEFORE: '$before' AFTER: '$string' PATTERN: '$part'\n";
     }
     
-    return $self->_local_croak("Could not get datetime for $datetime_initial: $string") 
-        if $string;
+    return $datetime_error->($string)
+        if $string ne '';
     
     # Handle 12 hour time notations
     if (defined $datetime_info{hour12} 
@@ -685,6 +687,18 @@ sub parse_datetime {
         $datetime{hour} += 12
             if $datetime_info{ampm} == 2 && $datetime{hour} < 12;
     }
+    
+    # Handle 24:00:00 time notations
+    if ($datetime{hour} == 24) {
+        if ($datetime{minute} == 0
+            && $datetime{second} == 0
+            && $datetime{nanosecond} == 0) {
+            $datetime{hour} = 0;
+            $datetime_info{dayadd} = 1;
+        } else {
+            return $self->_local_croak("Could not get datetime for $datetime_initial: Invalid 24-hour notation") 
+        } 
+    } 
     
     # Handle era
     if (defined $datetime_info{era} 
@@ -707,25 +721,28 @@ sub parse_datetime {
             $datetime{year} ||= 1;
         } elsif ($self->{incomplete} eq 'incomplete') {
             require DateTime::Incomplete;
-            my $dt;
-            eval {
-                $dt = DateTime::Incomplete->new(%datetime);
+            my $dt = eval {
+                return DateTime::Incomplete->new(%datetime);
             };
             return $self->_local_croak("Could not get datetime for $datetime_initial: $@")
                 if $@ || ref $dt ne 'DateTime::Incomplete';
             return $dt;
         } else {
-            return $self->_local_croak("Something went really wrong: Invalid incomplete setting");
+            return $self->_local_croak("Could not get datetime for $datetime_initial: Invalid incomplete setting");
         }
     }
     
     # Build datetime 
-    my $dt;
-    eval {
-        $dt = DateTime->new(%datetime);
+    my $dt = eval {
+        return DateTime->new(%datetime);
     };
     return $self->_local_croak("Could not get datetime for $datetime_initial: $@")
         if $@ || ref $dt ne 'DateTime';
+    
+    # Postprocessing
+    if ($datetime_info{dayadd}) {
+        $dt->add( days => 1 );
+    }
     
     # Perform checks
     foreach my $check ( keys %datetime_check ) {
@@ -771,7 +788,7 @@ object is 'undef', so you can work out why things went wrong.
 =cut
 
 sub errmsg {
-    $_[0]->{errmsg};
+    return $_[0]->{errmsg};
 }
 
 
@@ -900,7 +917,6 @@ sub _build_pattern {
         }
     }
     
-    
     return $self->{_built_pattern};
 }
 
@@ -939,7 +955,7 @@ sub _local_croak {
     return &{$self->{on_error}}($self,$message,@_) 
         if ref($self->{on_error}) eq 'CODE';
     
-    die($message) 
+    croak($message) 
         if $self->{on_error} eq 'croak';
     
     return undef 
@@ -958,7 +974,7 @@ sub _local_carp {
     return &{$self->{on_error}}($self,$message,@_) 
         if ref($self->{on_error}) eq 'CODE';
 
-    warn($message) 
+    carp($message) 
         if $self->{on_error} eq 'croak';
     
     return undef 
